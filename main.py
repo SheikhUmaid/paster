@@ -6,11 +6,20 @@ import threading
 import platform
 import os
 
+# Import pyautogui only on Windows if possible, or try-except for cross-platform safety
+try:
+    if platform.system() == "Windows":
+        import pyautogui
+    else:
+        pyautogui = None
+except ImportError:
+    pyautogui = None
+
 class SmallApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Wajahat")
-        self.root.geometry("450x400")
+        self.root.geometry("450x420")
         self.root.resizable(False, False)
         
         # Tracking variables
@@ -93,8 +102,9 @@ class SmallApp:
         main_frame.columnconfigure(1, weight=1)
 
         # OS Specific Note
-        note_text = "Note: Uses PowerShell on Windows, xdotool on Linux."
-        ttk.Label(main_frame, text=note_text, font=("Segoe UI", 8)).grid(row=2, column=0, columnspan=2, pady=5)
+        engine = "PyAutoGUI" if (self.system_os == "Windows" and pyautogui) else ("xdotool" if self.system_os == "Linux" else "Unknown")
+        note_text = f"Using {engine} for typing."
+        ttk.Label(main_frame, text=note_text, font=("Segoe UI", 8, "italic"), foreground="#4267b2").grid(row=2, column=0, columnspan=2, pady=5)
 
         # Buttons Frame
         button_frame = ttk.Frame(main_frame, style="Main.TFrame")
@@ -156,6 +166,11 @@ class SmallApp:
                 self.root.destroy()
 
     def on_paste(self):
+        # Additional safety check for Windows + PyAutoGUI
+        if self.system_os == "Windows" and pyautogui is None:
+            messagebox.showerror("Dependency Error", "PyAutoGUI is not installed.\nPlease run: pip install pyautogui")
+            return
+
         try:
             clipboard_text = self.root.clipboard_get()
             if not clipboard_text:
@@ -170,18 +185,6 @@ class SmallApp:
             messagebox.showwarning("Warning", "Clipboard is empty or could not be read.")
         except ValueError:
             messagebox.showwarning("Warning", "Please enter a valid number for delay.")
-
-    def escape_windows_keys(self, text):
-        """Escape special characters for PowerShell SendKeys."""
-        # Order matters: replace { and } first
-        # + ^ % ~ ( ) [ ]
-        specials = "+^%~()[]"
-        escaped = text
-        # Braces are extra special
-        escaped = escaped.replace('{', '{{}').replace('}', '{}}')
-        for char in specials:
-            escaped = escaped.replace(char, f'{{{char}}}')
-        return escaped
 
     def start_typing_sequence(self, text, delay):
         self.countdown_active = True
@@ -201,12 +204,9 @@ class SmallApp:
         self.status_var.set("Typing now!")
         try:
             if self.system_os == "Windows":
-                # Escape text for PowerShell SendKeys
-                escaped_text = self.escape_windows_keys(text)
-                # PowerShell command to type text
-                ps_cmd = f"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('{escaped_text}')"
-                # Use subprocess to run powershell
-                subprocess.run(["powershell", "-Command", ps_cmd], check=True)
+                # Use PyAutoGUI for better EXE compatibility
+                # interval adds a small delay between each key press
+                pyautogui.write(text, interval=0.01)
             else:
                 # Default to Linux/xdotool
                 subprocess.run(['xdotool', 'type', '--clearmodifiers', '--delay', '10', text], check=True)
